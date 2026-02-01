@@ -1,4 +1,4 @@
-name: 🚀 VS Code Web IDX (Zun x Kami Tunnel)
+name: 🚀 VS Code Web IDX (Zun Isolation)
 
 on:
   workflow_dispatch:
@@ -14,59 +14,67 @@ on:
         - '5h40m'
 
 jobs:
-  VSCode-Web:
+  VSCode-Isolation:
     runs-on: ubuntu-latest
     steps:
-      - name: 🛠️ ĐANG KHỞI TẠO VS CODE WEB IDX
+      - name: 🛠️ ĐANG KHỞI TẠO MÔI TRƯỜNG TÁCH BIỆT (ZUN DISK)
         run: |
-          # 1. Tối ưu hệ thống ẩn danh
-          sudo apt-get update > /dev/null 2>&1
+          # 1. Tạo file image 60GB để làm ổ cứng ảo
+          sudo fallocate -l 60G /zun_disk.img
+          sudo mkfs.ext4 /zun_disk.img > /dev/null 2>&1
+          mkdir -p /mnt/zun
+          sudo mount -o loop /zun_disk.img /mnt/zun
           
-          # 2. Cài đặt Code-Server (VS Code trên trình duyệt)
-          curl -fsSL https://code-server.dev/install.sh | sh > /dev/null 2>&1
-          
-          # 3. Tạo ổ cứng 60GB tách biệt cho Project
-          sudo fallocate -l 60G /swapfile_disk > /dev/null 2>&1
-          
-          # 4. Cấu hình User & Password truy cập Web
-          # Pass: Ubuntu@123456
-          mkdir -p ~/.config/code-server
-          echo "bind-addr: 127.0.0.1:8080" > ~/.config/code-server/config.yaml
-          echo "auth: password" >> ~/.config/code-server/config.yaml
-          echo "password: Ubuntu@123456" >> ~/.config/code-server/config.yaml
-          echo "cert: false" >> ~/.config/code-server/config.yaml
-          
-          # 5. Chạy Code-Server ngầm
-          nohup code-server > /dev/null 2>&1 &
-          
-          # 6. Tải và chạy Kami Tunnel cho Web (Port 8080)
+          # 2. Tạo Dockerfile để xây dựng môi trường IDX cô lập
+          cat <<EOF > Dockerfile
+          FROM ubuntu:22.04
+          RUN apt-get update && apt-get install -y curl wget git sudo && \\
+              curl -fsSL https://code-server.dev/install.sh | sh
+          # Tạo user ubuntu bên trong container
+          RUN useradd -m ubuntu && echo "ubuntu:Ubuntu@123456" | chpasswd && adduser ubuntu sudo
+          USER ubuntu
+          WORKDIR /home/ubuntu
+          ENTRYPOINT ["code-server", "--bind-addr", "0.0.0.0:8080", "--auth", "password"]
+          EOF
+
+          # 3. Build và chạy Container với ổ cứng Zun được gắn làm root
+          docker build -t zun-idx . > /dev/null 2>&1
+          docker run -d --name zun-container \
+            --storage-opt size=60G \
+            -v /mnt/zun:/home/ubuntu/project \
+            -p 8080:8080 \
+            -e PASSWORD=Ubuntu@123456 \
+            zun-idx > /dev/null 2>&1
+
+          # 4. Tải và chạy Kami Tunnel ẩn danh
           wget -q https://github.com/kami2k1/tunnel/releases/latest/download/kami-tunnel-linux-amd64.tar.gz
           tar -xzf kami-tunnel-linux-amd64.tar.gz
           chmod +x kami-tunnel
           ./kami-tunnel 8080 > /dev/null 2>&1 &
 
-      - name: 🎉 THÔNG TIN TRUY CẬP VS CODE
+      - name: 🎉 THÔNG TIN TRUY CẬP VS CODE (ZUN DISK)
         run: |
-          echo "🔄 Đang lấy liên kết IDX từ Zun x Kami Tunnel..."
+          echo "🔄 Đang kiểm tra ổ cứng Zun 60GB..."
           while [ ! -f kami_tunnel.txt ]; do sleep 2; done
           WEB_URL=$(cat kami_tunnel.txt)
           
           echo ""
           echo "┌────────────────────────────────────────────────────┐"
-          echo "│        🚀 VS CODE WEB IDX READY (By Zun)           │"
+          echo "│        🚀 VS CODE WEB IDX - ZUN ISOLATION          │"
           echo "├────────────────────────────────────────────────────┤"
           echo "│ 🌐 Liên kết Web: http://$WEB_URL"
           echo "│ 🔐 Mật khẩu    : Ubuntu@123456"
           echo "├────────────────────────────────────────────────────┤"
-          echo "│ ⚡ Cấu hình    : 4 Cores | 16 GB RAM | 60 GB SSD   │"
-          echo "│ 🛠️  Tính năng   : Full Terminal, Git, Node.js      │"
+          echo "│ 🛠️  Ổ cứng riêng: 60GB (Mount: /home/ubuntu/project)│"
+          echo "│ 📊 Lệnh kiểm tra: df -h | grep project             │"
+          echo "│ 👤 Người tạo   : Zun x Kami Tunnel                 │"
           echo "└────────────────────────────────────────────────────┘"
           echo ""
           echo "WEB_LINK=$WEB_URL" >> $GITHUB_ENV
 
-      - name: ⏳ DUY TRÌ PHIÊN VS CODE
+      - name: ⏳ DUY TRÌ PHIÊN IDX
         run: |
           for i in {1..72}; do
-            echo "💎 [$(date +%H:%M:%S)] IDX đang chạy. Link: $WEB_LINK"
+            echo "💎 [$(date +%H:%M:%S)] IDX Zun Disk đang hoạt động."
             sleep 300
           done
