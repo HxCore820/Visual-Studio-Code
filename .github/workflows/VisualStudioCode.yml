@@ -17,64 +17,70 @@ jobs:
   VSCode-Isolation:
     runs-on: ubuntu-latest
     steps:
-      - name: 🛠️ ĐANG KHỞI TẠO MÔI TRƯỜNG TÁCH BIỆT (ZUN DISK)
+      - name: 🛠️ ĐANG KHỞI TẠO MÔI TRƯỜNG ZUNADMIN
         run: |
-          # 1. Tạo file image 60GB để làm ổ cứng ảo
-          sudo fallocate -l 60G /zun_disk.img
-          sudo mkfs.ext4 /zun_disk.img > /dev/null 2>&1
-          mkdir -p /mnt/zun
-          sudo mount -o loop /zun_disk.img /mnt/zun
+          # 1. Thiết lập Hostname Zunadmin
+          sudo hostnamectl set-hostname Zunadmin
+          echo "127.0.0.1 Zunadmin" | sudo tee -a /etc/hosts > /dev/null
+
+          # 2. Tạo ổ cứng ảo 60GB tên Zun (Sửa lỗi Permission denied)
+          # Tạo ngay tại home để không bị chặn quyền
+          sudo fallocate -l 60G $HOME/zun_storage.img
+          sudo mkfs.ext4 $HOME/zun_storage.img > /dev/null 2>&1
+          mkdir -p $HOME/Zun
+          sudo mount -o loop $HOME/zun_storage.img $HOME/Zun
+          sudo chown $USER:$USER $HOME/Zun
+
+          # 3. Cài đặt VS Code Web (Code-Server) ẩn danh
+          curl -fsSL https://code-server.dev/install.sh | sh > /dev/null 2>&1
           
-          # 2. Tạo Dockerfile để xây dựng môi trường IDX cô lập
-          cat <<EOF > Dockerfile
-          FROM ubuntu:22.04
-          RUN apt-get update && apt-get install -y curl wget git sudo && \\
-              curl -fsSL https://code-server.dev/install.sh | sh
-          # Tạo user ubuntu bên trong container
-          RUN useradd -m ubuntu && echo "ubuntu:Ubuntu@123456" | chpasswd && adduser ubuntu sudo
-          USER ubuntu
-          WORKDIR /home/ubuntu
-          ENTRYPOINT ["code-server", "--bind-addr", "0.0.0.0:8080", "--auth", "password"]
+          # Cấu hình mật khẩu: Ubuntu@123456
+          mkdir -p ~/.config/code-server
+          cat <<EOF > ~/.config/code-server/config.yaml
+          bind-addr: 127.0.0.1:8080
+          auth: password
+          password: Ubuntu@123456
+          cert: false
           EOF
 
-          # 3. Build và chạy Container với ổ cứng Zun được gắn làm root
-          docker build -t zun-idx . > /dev/null 2>&1
-          docker run -d --name zun-container \
-            --storage-opt size=60G \
-            -v /mnt/zun:/home/ubuntu/project \
-            -p 8080:8080 \
-            -e PASSWORD=Ubuntu@123456 \
-            zun-idx > /dev/null 2>&1
+          # 4. Chạy VS Code Web hướng vào ổ cứng Zun
+          nohup code-server --user-data-dir $HOME/Zun/vscode-data $HOME/Zun > /dev/null 2>&1 &
 
-          # 4. Tải và chạy Kami Tunnel ẩn danh
+          # 5. Tải và chạy Kami Tunnel (Port 8080)
           wget -q https://github.com/kami2k1/tunnel/releases/latest/download/kami-tunnel-linux-amd64.tar.gz
           tar -xzf kami-tunnel-linux-amd64.tar.gz
           chmod +x kami-tunnel
           ./kami-tunnel 8080 > /dev/null 2>&1 &
 
-      - name: 🎉 THÔNG TIN TRUY CẬP VS CODE (ZUN DISK)
+      - name: 🎉 THÔNG TIN TRUY CẬP VS CODE (ZUNADMIN)
         run: |
-          echo "🔄 Đang kiểm tra ổ cứng Zun 60GB..."
+          echo "🔄 Đang lấy liên kết từ Zun x Kami Tunnel..."
           while [ ! -f kami_tunnel.txt ]; do sleep 2; done
-          WEB_URL=$(cat kami_tunnel.txt)
+          
+          WEB_URL=""
+          while [ -z "$WEB_URL" ]; do
+            WEB_URL=$(cat kami_tunnel.txt)
+            sleep 2
+          done
           
           echo ""
           echo "┌────────────────────────────────────────────────────┐"
-          echo "│        🚀 VS CODE WEB IDX - ZUN ISOLATION          │"
+          echo "│        🚀 VS CODE WEB IDX - HOST: ZUNADMIN         │"
           echo "├────────────────────────────────────────────────────┤"
           echo "│ 🌐 Liên kết Web: http://$WEB_URL"
           echo "│ 🔐 Mật khẩu    : Ubuntu@123456"
           echo "├────────────────────────────────────────────────────┤"
-          echo "│ 🛠️  Ổ cứng riêng: 60GB (Mount: /home/ubuntu/project)│"
-          echo "│ 📊 Lệnh kiểm tra: df -h | grep project             │"
+          echo "│ 🖥️  Tên máy     : Zunadmin                          │"
+          echo "│ 🛠️  Ổ cứng Zun  : 60GB (Đã biệt lập)               │"
           echo "│ 👤 Người tạo   : Zun x Kami Tunnel                 │"
           echo "└────────────────────────────────────────────────────┘"
           echo ""
           echo "WEB_LINK=$WEB_URL" >> $GITHUB_ENV
 
-      - name: ⏳ DUY TRÌ PHIÊN IDX
+      - name: ⏳ DUY TRÌ PHIÊN ZUNADMIN
         run: |
           for i in {1..72}; do
-            echo "💎 [$(date +%H:%M:%S)] IDX Zun Disk đang hoạt động."
+            # Hiển thị log trạng thái cực gọn
+            echo "💎 [$(date +%H:%M:%S)] Zunadmin đang chạy. Link: $WEB_LINK"
             sleep 300
           done
