@@ -1,4 +1,4 @@
-name: 🚀 VS CODE WEB IDX (ZUN ADMIN FINAL STABLE)
+name: 🚀 VS CODE WEB IDX (ZUN ADMIN - IP FIX)
 
 on:
   workflow_dispatch:
@@ -19,13 +19,12 @@ jobs:
     steps:
       - name: 🛠️ KHỞI TẠO HỆ THỐNG BIỆT LẬP
         run: |
-          # 1. Setup Hostname & User
           sudo hostnamectl set-hostname ZunAdmin
           sudo useradd -m -s /bin/bash Admin
           echo "Admin:Ubuntu@123456" | sudo chpasswd
           sudo usermod -aG sudo Admin
 
-          # 2. Tạo ổ cứng 60GB & Mount
+          # Tạo và Mount ổ 60GB
           sudo fallocate -l 60G /mnt/zun_storage.img
           sudo mkfs.ext4 /mnt/zun_storage.img > /dev/null 2>&1
           sudo mount -o loop /mnt/zun_storage.img /home/Admin
@@ -33,7 +32,7 @@ jobs:
           sudo cp /etc/skel/.bashrc /home/Admin/
           sudo chown -R Admin:Admin /home/Admin
 
-          # 3. Cài Code-Server
+          # Cài đặt Code-Server
           curl -fsSL https://code-server.dev/install.sh | sh > /dev/null 2>&1
           sudo -u Admin bash -c "cat <<EOF > /home/Admin/.config/code-server/config.yaml
           bind-addr: 127.0.0.1:8080
@@ -42,42 +41,43 @@ jobs:
           cert: false
           EOF"
 
-          # 4. Chạy VS Code (Ngầm)
+          # Chạy VS Code & Tunnel
           sudo -u Admin nohup code-server > /home/Admin/code_server.log 2>&1 &
-
-          # 5. Chạy Tunnel (Dùng stdbuf để ghi file IP:port ngay lập tức)
+          
           wget -q https://github.com/kami2k1/tunnel/releases/latest/download/kami-tunnel-linux-amd64.tar.gz
           tar -xzf kami-tunnel-linux-amd64.tar.gz
           chmod +x kami-tunnel
           
-          # MẸO: Ép ghi log không buffer để cat có dữ liệu ngay
+          # Dùng stdbuf để đảm bảo cat đọc được dữ liệu ngay
           stdbuf -o0 ./kami-tunnel 8080 > kami_tunnel.txt 2>&1 &
 
-      - name: 🎉 THÔNG TIN TRUY CẬP (CAT MODE)
+      - name: 🎉 THÔNG TIN TRUY CẬP (IP:PORT MODE)
         run: |
-          echo "📡 Đang đợi Tunnel cấp IP..."
-          sleep 15 # Cho tunnel 15 giây để kết nối xong
+          echo "📡 Đang trích xuất IP từ kami_tunnel.txt..."
+          sleep 12
           
-          echo "------------------------------------------------------"
-          # Đọc trực tiếp file, xóa mã màu và lấy dòng chứa http
-          WEB_URL=$(cat kami_tunnel.txt | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" | grep -o 'http://[a-zA-Z0-9.-]*:[0-9]*' | head -n 1)
+          # Đọc file, tìm dòng Public, lấy phần IP:Port (bỏ các ký tự | và khoảng trắng)
+          RAW_IP=$(cat kami_tunnel.txt | grep "Public:" | head -n 1 | awk -F'Public:' '{print $2}' | tr -d ' |')
           
-          if [ -z "$WEB_URL" ]; then
-            echo "❌ Lỗi: Chưa tìm thấy IP trong kami_tunnel.txt. Nội dung file hiện tại:"
+          if [ -z "$RAW_IP" ]; then
+            echo "❌ Không tìm thấy IP. Nội dung file hiện tại để bạn check:"
             cat kami_tunnel.txt
             exit 1
           fi
 
-          echo -e "\033[1;32m🚀 KẾT NỐI THÀNH CÔNG!\033[0m"
-          echo -e "\033[1;36m🌐 LINK WEB     :\033[0m \033[4;37m$WEB_URL\033[0m"
-          echo -e "\033[1;36m👤 USERNAME     :\033[0m Admin"
-          echo -e "\033[1;36m🔐 PASSWORD     :\033[0m Ubuntu@123456"
-          echo "------------------------------------------------------"
-          echo "WEB_LINK=$WEB_URL" >> $GITHUB_ENV
+          echo ""
+          echo -e "\033[1;32m╔══════════════════════════════════════════════════════════════╗\033[0m"
+          echo -e "\033[1;32m║\033[0m \033[1;36m🌐 ĐỊA CHỈ IP   :\033[0m http://$RAW_IP"
+          echo -e "\033[1;32m║\033[0m \033[1;36m👤 USERNAME     :\033[0m Admin"
+          echo -e "\033[1;32m║\033[0m \033[1;36m🔐 PASSWORD     :\033[0m Ubuntu@123456"
+          echo -e "\033[1;32m╠══════════════════════════════════════════════════════════════╣\033[0m"
+          echo -e "\033[1;32m║\033[0m \033[1;33m💾 BỘ NHỚ       :\033[0m 60GB SSD (Isolated)"
+          echo -e "\033[1;32m╚══════════════════════════════════════════════════════════════╝\033[0m"
+          echo "WEB_LINK=http://$RAW_IP" >> $GITHUB_ENV
 
       - name: ⏳ DUY TRÌ
         run: |
           for i in {1..100}; do
-            echo "💎 [$(date +%T)] ZunAdmin Online: $WEB_LINK"
+            echo "💎 [$(date +%T)] IP ĐANG CHẠY: $WEB_LINK"
             sleep 300
           done
