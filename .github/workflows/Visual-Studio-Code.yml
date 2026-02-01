@@ -1,4 +1,4 @@
-name: 🚀 VS Code Web IDX (Zun x Kami Tunnel)
+name: 🚀 Visual-Studio-Code
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ on:
         - '5h40m'
 
 jobs:
-  VSCode-Web:
+  Visual-Studio-Code:
     runs-on: ubuntu-latest
     steps:
       - name: 🛠️ Khởi tạo hệ thống
@@ -22,7 +22,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq wget curl tar > /dev/null 2>&1
           
-      - name: 📦 Cài đặt Code-Server
+      - name: 📦 Cài đặt Visual-Studio-Code
         run: |
           curl -fsSL https://code-server.dev/install.sh | sh > /dev/null 2>&1
           
@@ -35,7 +35,7 @@ jobs:
           sudo mount -o loop /tmp/workspace.img /mnt/workspace
           sudo chown -R $USER:$USER /mnt/workspace
           
-      - name: ⚙️ Cấu hình Code-Server
+      - name: ⚙️ Cấu hình Visual-Studio-Code
         run: |
           mkdir -p ~/.config/code-server
           cat > ~/.config/code-server/config.yaml << 'EOF'
@@ -46,12 +46,12 @@ jobs:
           user-data-dir: /mnt/workspace/.vscode
           EOF
           
-      - name: 🚀 Khởi động Code-Server
+      - name: 🚀 Khởi động Visual-Studio-Code
         run: |
           nohup code-server --user-data-dir /mnt/workspace/.vscode > /dev/null 2>&1 &
           sleep 3
           
-      - name: 🌐 Khởi động Kami Tunnel
+      - name: 🌐 Khởi động IP PUBLIC 
         run: |
           wget -q https://github.com/kami2k1/tunnel/releases/latest/download/kami-tunnel-linux-amd64.tar.gz
           tar -xzf kami-tunnel-linux-amd64.tar.gz > /dev/null 2>&1
@@ -60,7 +60,7 @@ jobs:
           
       - name: 🎉 THÔNG TIN TRUY CẬP VS CODE
         run: |
-          echo "⏳ Đang lấy liên kết từ Kami Tunnel..."
+          echo "⏳ Đang lấy liên kết từ IP PUBLIC..."
           for i in {1..30}; do
             if [ -f kami_tunnel.txt ]; then
               break
