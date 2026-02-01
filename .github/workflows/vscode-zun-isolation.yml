@@ -1,4 +1,4 @@
-name: 🚀 VS Code Web IDX (Zun Isolation Pro)
+Name: 🚀 VS Code Web IDX (Zun Admin Isolation)
 
 on:
   workflow_dispatch:
@@ -10,87 +10,95 @@ on:
         type: choice
         options:
         - '1h'
-        - '3h' 
+        - '3h'
         - '5h40m'
 
 jobs:
-  VSCode-Isolation:
+  VSCode-ZunAdmin:
     runs-on: ubuntu-latest
     steps:
-      - name: 🛠️ ĐANG KHỞI TẠO MÔI TRƯỜNG ZUNADMIN
+      - name: 🛠️ KHỞI TẠO MÔI TRƯỜNG ZUN (ISOLATED)
         run: |
-          # 1. Thiết lập Hostname Zunadmin
-          sudo hostname Zunadmin
-          
-          # 2. Tạo ổ đĩa ảo 60GB biệt lập (Sửa lỗi quyền hạn)
-          dd if=/dev/zero of=$HOME/zun_disk.img bs=1M count=61440 status=none
-          mkfs.ext4 -q $HOME/zun_disk.img
-          mkdir -p $HOME/zun_workspace
-          sudo mount -o loop $HOME/zun_disk.img $HOME/zun_workspace
-          sudo chown -R $USER:$USER $HOME/zun_workspace
+          # 1. Thiết lập Hostname
+          sudo hostnamectl set-hostname ZunMachine
+          echo "127.0.0.1 ZunMachine" | sudo tee -a /etc/hosts > /dev/null
 
-          # 3. Cài đặt Code-Server (VS Code Web) ẩn danh
-          curl -fsSL https://code-server.dev/install.sh | sh > /dev/null 2>&1
+          # 2. Tạo User 'Admin' và Group
+          echo "👤 Đang tạo User Admin..."
+          sudo useradd -m -s /bin/bash Admin
+          echo "Admin:Ubuntu@123456" | sudo chpasswd
+          sudo usermod -aG sudo Admin
+
+          # 3. Tạo ổ cứng ảo 60GB (Zun Storage)
+          echo "💿 Đang khởi tạo ổ cứng 60GB..."
+          sudo fallocate -l 60G /mnt/zun_storage.img
+          sudo mkfs.ext4 /mnt/zun_storage.img > /dev/null 2>&1
           
-          # 4. Cấu hình mật khẩu: Ubuntu@123456
-          mkdir -p ~/.config/code-server
-          cat <<EOF > ~/.config/code-server/config.yaml
-          bind-addr: 0.0.0.0:8080
+          # 4. Mount ổ cứng vào chính Home của Admin (/home/Admin)
+          # Lưu ý: Backup file gốc của user mới tạo trước khi mount (nếu cần)
+          sudo mount -o loop /mnt/zun_storage.img /home/Admin
+          
+          # Cấp quyền sở hữu ổ cứng cho Admin
+          sudo chown -R Admin:Admin /home/Admin
+          sudo chmod 755 /home/Admin
+
+          # 5. Cài đặt VS Code Web (Code-Server)
+          echo "📥 Đang cài đặt Code-Server..."
+          curl -fsSL https://code-server.dev/install.sh | sh > /dev/null 2>&1
+
+          # 6. Cấu hình VS Code cho user Admin (Chạy dưới quyền Admin)
+          sudo -u Admin mkdir -p /home/Admin/.config/code-server
+          sudo -u Admin bash -c 'cat <<EOF > /home/Admin/.config/code-server/config.yaml
+          bind-addr: 127.0.0.1:8080
           auth: password
           password: Ubuntu@123456
           cert: false
-          EOF
+          EOF'
 
-          # 5. Khởi chạy VS Code hướng vào ổ Zun (Môi trường tách biệt)
-          nohup code-server --user-data-dir $HOME/zun_workspace/.vscode-data $HOME/zun_workspace > /dev/null 2>&1 &
+          # 7. Tinh chỉnh môi trường (Fake df -h cho cảm giác Pro)
+          # Khi gõ df -h chỉ hiện ổ của mình và root tối giản
+          sudo -u Admin bash -c 'echo "alias df=\"df -h | grep -E 'Filesystem|/home/Admin'\"" >> /home/Admin/.bashrc'
+          
+          # 8. Khởi chạy VS Code dưới user Admin
+          echo "🚀 Đang khởi động VS Code..."
+          sudo -u Admin nohup code-server > /home/Admin/code-server.log 2>&1 &
 
-          # 6. Khởi chạy Kami Tunnel & Fix lỗi IP (Port 8080)
+          # 9. Tải và chạy Kami Tunnel
+          echo "🌐 Đang thiết lập Tunnel..."
           wget -q https://github.com/kami2k1/tunnel/releases/latest/download/kami-tunnel-linux-amd64.tar.gz
-          tar -xzf kami-tunnel-linux-amd64.tar.gz > /dev/null 2>&1
+          tar -xzf kami-tunnel-linux-amd64.tar.gz
           chmod +x kami-tunnel
           ./kami-tunnel 8080 > kami_tunnel.txt 2>&1 &
 
-      - name: 🎉 THÔNG TIN TRUY CẬP VS CODE
+      - name: 🎉 THÔNG TIN TRUY CẬP (USER: ADMIN)
         run: |
-          echo "🔄 Zun x Kami Tunnel đang thiết lập đường truyền..."
+          echo "🔄 Đang lấy liên kết..."
+          sleep 5
+          WEB_URL=$(cat kami_tunnel.txt | grep -o 'http://[a-zA-Z0-9.-]*' | head -n 1)
           
-          WEB_URL=""
-          # Vòng lặp lấy IP thông minh (Fix lỗi link trống)
-          for i in {1..30}; do
-            if [ -f kami_tunnel.txt ]; then
-              # Lọc chính xác link từ file log của Kami
-              WEB_URL=$(grep -a -oE "https://[a-zA-Z0-9.-]+" kami_tunnel.txt | head -n 1 | sed 's|https://||')
-              if [ ! -z "$WEB_URL" ]; then break; fi
-            fi
+          # Fallback nếu chưa bắt được link ngay
+          while [ -z "$WEB_URL" ]; do
             sleep 2
+            WEB_URL=$(cat kami_tunnel.txt | grep -o 'http://[a-zA-Z0-9.-]*' | head -n 1)
           done
 
-          if [ -z "$WEB_URL" ]; then
-            echo "❌ Lỗi: Không lấy được IP từ Kami Tunnel. Thử lại sau."
-            exit 1
-          fi
-
           echo ""
-          echo "╔══════════════════════════════════════════════════════════╗"
-          echo "║           🚀 VS CODE WEB - ZUN ISOLATION 🚀             ║"
-          echo "╠══════════════════════════════════════════════════════════╣"
-          echo "║  🌐 Liên kết Web    : http://$WEB_URL"
-          echo "║  🔐 Mật khẩu        : Ubuntu@123456                      ║"
-          echo "╠══════════════════════════════════════════════════════════╣"
-          echo "║  💾 Ổ đĩa Zun       : 60GB (Biệt lập hoàn toàn)          ║"
-          echo "║  🖥️  Hostname        : Zunadmin                          ║"
-          echo "║  👤 Người tạo       : Zun x Kami Tunnel                 ║"
-          echo "╚══════════════════════════════════════════════════════════╝"
+          echo "┌────────────────────────────────────────────────────┐"
+          echo "│ 🚀 VS CODE WEB IDX - ISOLATED EDITION              │"
+          echo "├────────────────────────────────────────────────────┤"
+          echo "│ 🌐 URL      : $WEB_URL"
+          echo "│ 👤 User     : Admin"
+          echo "│ 🔐 Password : Ubuntu@123456"
+          echo "├────────────────────────────────────────────────────┤"
+          echo "│ 💾 Storage  : 60GB (Mounted at /home/Admin)      │"
+          echo "│ 🛡️ Mode     : User Isolation (Biệt lập)          │"
+          echo "└────────────────────────────────────────────────────┘"
           echo ""
-          echo "✅ Môi trường đã sẵn sàng! Chúc bạn làm việc hiệu quả."
-          echo ""
-          echo "WEB_LINK=http://$WEB_URL" >> $GITHUB_ENV
+          echo "WEB_LINK=$WEB_URL" >> $GITHUB_ENV
 
       - name: ⏳ DUY TRÌ PHIÊN ZUNADMIN
         run: |
-          # Thanh tiến trình chuyên nghiệp
           for i in {1..72}; do
-            current_time=$(date '+%H:%M:%S')
-            echo "💎 [$current_time] Zunadmin đang hoạt động | Link: $WEB_LINK"
+            echo "💎 [$(date +%H:%M:%S)] Admin đang hoạt động... Link: $WEB_LINK"
             sleep 300
           done
