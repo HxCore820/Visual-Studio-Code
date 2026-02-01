@@ -1,4 +1,4 @@
-name: 🚀 VS CODE WEB IDX (ZUN ADMIN VIP)
+name: 🚀 VS CODE WEB IDX (ZUN ADMIN FINAL)
 
 on:
   workflow_dispatch:
@@ -17,35 +17,33 @@ jobs:
   VSCode-ZunAdmin:
     runs-on: ubuntu-latest
     steps:
-      - name: 🛠️ KHỞI TẠO HỆ THỐNG ZUN (ISOLATED)
+      - name: 🛠️ KHỞI TẠO HỆ THỐNG BIỆT LẬP
         run: |
-          # 1. Thiết lập Hostname
+          # Thiết lập Hostname
           sudo hostnamectl set-hostname ZunAdmin
           
-          # 2. Tạo User Admin biệt lập
-          echo "👤 Đang thiết lập người dùng Admin..."
+          # Tạo User Admin
           sudo useradd -m -s /bin/bash Admin
           echo "Admin:Ubuntu@123456" | sudo chpasswd
           sudo usermod -aG sudo Admin
 
-          # 3. Tạo ổ cứng 60GB và Mount vào Home
-          echo "💿 Đang tạo phân vùng 60GB riêng biệt..."
+          # Tạo ổ cứng ảo 60GB
           sudo fallocate -l 60G /mnt/zun_storage.img
           sudo mkfs.ext4 /mnt/zun_storage.img > /dev/null 2>&1
-          sudo mount -o loop /mnt/zun_storage.img /home/Admin
           
-          # Đảm bảo quyền sở hữu cho Admin
+          # Mount vào Home và xử lý thư mục
+          sudo mount -o loop /mnt/zun_storage.img /home/Admin
+          sudo mkdir -p /home/Admin/.config/code-server
+          sudo cp /etc/skel/.bashrc /home/Admin/
+          
+          # Thiết lập quyền hạn
           sudo chown -R Admin:Admin /home/Admin
           sudo chmod 755 /home/Admin
-          sudo cp /etc/skel/.bashrc /home/Admin/
-          sudo chown Admin:Admin /home/Admin/.bashrc
 
-          # 4. Cài đặt VS Code Server
-          echo "📥 Đang tải VS Code Web..."
+          # Cài đặt VS Code Web
           curl -fsSL https://code-server.dev/install.sh | sh > /dev/null 2>&1
 
-          # 5. Cấu hình Code-Server & Fake Storage View (Fix lỗi EOF)
-          sudo -u Admin mkdir -p /home/Admin/.config/code-server
+          # Cấu hình Code-Server (Sửa lỗi EOF triệt để)
           sudo -u Admin bash -c "cat <<EOF > /home/Admin/.config/code-server/config.yaml
           bind-addr: 127.0.0.1:8080
           auth: password
@@ -53,12 +51,11 @@ jobs:
           cert: false
           EOF"
 
-          # Fix lệnh df để chỉ hiện ổ 60GB (Dùng dấu thoát chuỗi chuẩn)
-          sudo -u Admin bash -c "echo \"alias df='df -h | grep -E \"Filesystem|/home/Admin\"'\" >> /home/Admin/.bashrc"
+          # Thiết lập alias df -h (Kiểu mới không lỗi)
+          echo "alias df='df -h | grep -E \"Filesystem|/home/Admin\"'" | sudo tee -a /home/Admin/.bashrc > /dev/null
 
-          # 6. Chạy VS Code & Tunnel
-          echo "🚀 Khởi động dịch vụ..."
-          sudo -u Admin nohup code-server > /home/Admin/code.log 2>&1 &
+          # Khởi chạy dịch vụ
+          sudo -u Admin nohup code-server > /home/Admin/code_server.log 2>&1 &
           
           wget -q https://github.com/kami2k1/tunnel/releases/latest/download/kami-tunnel-linux-amd64.tar.gz
           tar -xzf kami-tunnel-linux-amd64.tar.gz
@@ -67,8 +64,8 @@ jobs:
 
       - name: 🎉 BẢNG ĐIỀU KHIỂN ZUN ADMIN
         run: |
-          echo "🔄 Đang kết nối Tunnel..."
-          sleep 7
+          echo "🔄 Đang quét tìm Tunnel..."
+          sleep 8
           WEB_URL=$(grep -o 'http://[a-zA-Z0-9.-]*' kami_tunnel.txt | head -n 1)
           
           while [ -z "$WEB_URL" ]; do
@@ -76,30 +73,29 @@ jobs:
             WEB_URL=$(grep -o 'http://[a-zA-Z0-9.-]*' kami_tunnel.txt | head -n 1)
           done
 
-          # GIAO DIỆN LOG MỚI SIÊU ĐẸP
+          # LOG GIAO DIỆN VIP MÀU MÈ
           echo -e "\033[1;32m"
           echo "  ███████╗██╗   ██╗███╗   ██╗     █████╗ ██████╗ ███╗   ███╗██╗███╗   ██╗"
           echo "  ╚══███╔╝██║   ██║████╗  ██║    ██╔══██╗██╔══██╗████╗ ████║██║████╗  ██║"
           echo "    ███╔╝ ██║   ██║██╔██╗ ██║    ███████║██║  ██║██╔████╔██║██║██╔██╗ ██║"
           echo "   ███╔╝  ██║   ██║██║╚██╗██║    ██╔══██║██║  ██║██║╚██╔╝██║██║██║╚██╗██║"
           echo "  ███████╗╚██████╔╝██║ ╚████║    ██║  ██║██████╔╝██║ ╚═╝ ██║██║██║ ╚████║"
-          echo "  ╚══════╝ ╚═════╝ ╚═╝  ╚═══╝    ╚═╝  ╚═╝╚═════╝ ╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝"
           echo -e "\033[0m"
-          echo -e "\033[1;34m╔══════════════════════════════════════════════════════════════╗\033[0m"
-          echo -e "\033[1;34m║\033[0m \033[1;32m🌐 LINK TRUY CẬP :\033[0m \033[4;37m$WEB_URL\033[0m"
-          echo -e "\033[1;34m║\033[0m \033[1;32m👤 USERNAME     :\033[0m Admin"
-          echo -e "\033[1;34m║\033[0m \033[1;32m🔐 PASSWORD     :\033[0m Ubuntu@123456"
-          echo -e "\033[1;34m╠══════════════════════════════════════════════════════════════╣\033[0m"
-          echo -e "\033[1;34m║\033[0m \033[1;33m💾 STORAGE      :\033[0m 60GB (Đã biệt lập hoàn toàn)        \033[1;34m║\033[0m"
-          echo -e "\033[1;34m║\033[0m \033[1;33m🛡️ ISOLATION    :\033[0m Enabled (User Admin Mode)           \033[1;34m║\033[0m"
-          echo -e "\033[1;34m╚══════════════════════════════════════════════════════════════╝\033[0m"
+          echo -e "\033[1;35m┌──────────────────────────────────────────────────────────────┐\033[0m"
+          echo -e "\033[1;35m│\033[0m \033[1;36m🌐 LINK TRUY CẬP :\033[0m \033[4;32m$WEB_URL\033[0m"
+          echo -e "\033[1;35m│\033[0m \033[1;36m👤 USERNAME     :\033[0m \033[1;37mAdmin\033[0m"
+          echo -e "\033[1;35m│\033[0m \033[1;36m🔐 PASSWORD     :\033[0m \033[1;37mUbuntu@123456\033[0m"
+          echo -e "\033[1;35m├──────────────────────────────────────────────────────────────┤\033[0m"
+          echo -e "\033[1;35m│\033[0m \033[1;33m💾 STORAGE      :\033[0m 60GB (Đã biệt lập - /home/Admin)     \033[1;35m│\033[0m"
+          echo -e "\033[1;35m│\033[0m \033[1;33m🛡️ STATUS       :\033[0m Online - Isolated Mode               \033[1;35m│\033[0m"
+          echo -e "\033[1;35m└──────────────────────────────────────────────────────────────┘\033[0m"
           echo ""
           echo "WEB_LINK=$WEB_URL" >> $GITHUB_ENV
 
-      - name: ⏳ DUY TRÌ TRẠNG THÁI
+      - name: ⏳ DUY TRÌ KẾT NỐI
         run: |
-          echo -e "\033[1;32m[$(date +%T)] Hệ thống ZunAdmin đã sẵn sàng phục vụ!\033[0m"
+          echo -e "\033[1;32m[$(date +%T)] Hệ thống đang chạy mượt mà...\033[0m"
           for i in {1..72}; do
-            echo -e "\033[1;34m💎 [$(date +%T)] Đang chạy tại: $WEB_LINK\033[0m"
+            echo -e "\033[1;34m💎 [$(date +%T)] Hoạt động: $WEB_LINK\033[0m"
             sleep 300
           done
