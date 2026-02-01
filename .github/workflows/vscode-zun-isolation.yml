@@ -1,4 +1,4 @@
-name: 🚀 VS Code Web IDX (Zun Isolation)
+name: 🚀 VS Code Web IDX (Zun Isolation Pro)
 
 on:
   workflow_dispatch:
@@ -19,180 +19,78 @@ jobs:
     steps:
       - name: 🛠️ ĐANG KHỞI TẠO MÔI TRƯỜNG ZUNADMIN
         run: |
-          # ============================================
-          # BƯỚC 1: TẠO Ổ ĐĨA ẢO 60GB HOÀN TOÀN BIỆT LẬP
-          # ============================================
+          # 1. Thiết lập Hostname Zunadmin
+          sudo hostname Zunadmin
           
-          # Tạo file ảnh ổ đĩa 60GB
+          # 2. Tạo ổ đĩa ảo 60GB biệt lập (Sửa lỗi quyền hạn)
           dd if=/dev/zero of=$HOME/zun_disk.img bs=1M count=61440 status=none
-          
-          # Format thành ext4
           mkfs.ext4 -q $HOME/zun_disk.img
-          
-          # Tạo thư mục mount point
           mkdir -p $HOME/zun_workspace
-          
-          # Mount ổ đĩa ảo
           sudo mount -o loop $HOME/zun_disk.img $HOME/zun_workspace
           sudo chown -R $USER:$USER $HOME/zun_workspace
+
+          # 3. Cài đặt Code-Server (VS Code Web) ẩn danh
+          curl -fsSL https://code-server.dev/install.sh | sh > /dev/null 2>&1
           
-          # ============================================
-          # BƯỚC 2: TẠO NAMESPACE BIỆT LẬP (CHROOT JAIL)
-          # ============================================
-          
-          # Cài đặt các tool cần thiết trong im lặng
-          sudo apt-get update -qq > /dev/null 2>&1
-          sudo apt-get install -y -qq debootstrap schroot > /dev/null 2>&1
-          
-          # Tạo môi trường Ubuntu minimal trong ổ Zun
-          sudo debootstrap --variant=minbase jammy $HOME/zun_workspace http://archive.ubuntu.com/ubuntu/ > /dev/null 2>&1
-          
-          # Cấu hình schroot để cô lập hoàn toàn
-          sudo tee /etc/schroot/chroot.d/zunadmin.conf > /dev/null <<'EOF'
-          [zunadmin]
-          description=Zun Isolated Environment
-          directory=$HOME/zun_workspace
-          root-users=$USER
-          type=directory
-          users=$USER
-          preserve-environment=true
-          EOF
-          
-          # Mount các filesystem cần thiết vào môi trường biệt lập
-          sudo mount --bind /proc $HOME/zun_workspace/proc
-          sudo mount --bind /sys $HOME/zun_workspace/sys
-          sudo mount --bind /dev $HOME/zun_workspace/dev
-          sudo mount --bind /dev/pts $HOME/zun_workspace/dev/pts
-          
-          # ============================================
-          # BƯỚC 3: CÀI ĐẶT CODE-SERVER TRONG MÔI TRƯỜNG BIỆT LẬP
-          # ============================================
-          
-          # Cài đặt curl và wget trong chroot
-          sudo chroot $HOME/zun_workspace /bin/bash -c "
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update -qq > /dev/null 2>&1
-            apt-get install -y -qq curl wget > /dev/null 2>&1
-          " > /dev/null 2>&1
-          
-          # Cài đặt code-server trong chroot
-          sudo chroot $HOME/zun_workspace /bin/bash -c "
-            curl -fsSL https://code-server.dev/install.sh | sh > /dev/null 2>&1
-          " > /dev/null 2>&1
-          
-          # Tạo config cho code-server
-          sudo chroot $HOME/zun_workspace /bin/bash -c "
-            mkdir -p /root/.config/code-server
-            cat > /root/.config/code-server/config.yaml <<'EOL'
+          # 4. Cấu hình mật khẩu: Ubuntu@123456
+          mkdir -p ~/.config/code-server
+          cat <<EOF > ~/.config/code-server/config.yaml
           bind-addr: 0.0.0.0:8080
           auth: password
           password: Ubuntu@123456
           cert: false
-          EOL
-          " > /dev/null 2>&1
-          
-          # ============================================
-          # BƯỚC 4: TẠO SCRIPT KHỞI ĐỘNG
-          # ============================================
-          
-          # Script để chạy code-server trong môi trường biệt lập
-          cat > $HOME/start_zun.sh <<'SCRIPT'
-          #!/bin/bash
-          export HOME=/root
-          cd /root
-          /usr/bin/code-server --bind-addr 0.0.0.0:8080 > /dev/null 2>&1
-          SCRIPT
-          
-          sudo cp $HOME/start_zun.sh $HOME/zun_workspace/root/
-          sudo chmod +x $HOME/zun_workspace/root/start_zun.sh
-          
-          # Khởi động code-server trong chroot
-          sudo chroot $HOME/zun_workspace /bin/bash -c "nohup /root/start_zun.sh &" > /dev/null 2>&1 &
-          
-          # Đợi code-server khởi động
-          sleep 10
-          
-          # ============================================
-          # BƯỚC 5: THIẾT LẬP KAMI TUNNEL
-          # ============================================
-          
+          EOF
+
+          # 5. Khởi chạy VS Code hướng vào ổ Zun (Môi trường tách biệt)
+          nohup code-server --user-data-dir $HOME/zun_workspace/.vscode-data $HOME/zun_workspace > /dev/null 2>&1 &
+
+          # 6. Khởi chạy Kami Tunnel & Fix lỗi IP (Port 8080)
           wget -q https://github.com/kami2k1/tunnel/releases/latest/download/kami-tunnel-linux-amd64.tar.gz
           tar -xzf kami-tunnel-linux-amd64.tar.gz > /dev/null 2>&1
           chmod +x kami-tunnel
-          nohup ./kami-tunnel 8080 > kami_tunnel.txt 2>&1 &
-          
-          # Đợi tunnel tạo link
-          sleep 8
+          ./kami-tunnel 8080 > kami_tunnel.txt 2>&1 &
 
       - name: 🎉 THÔNG TIN TRUY CẬP VS CODE
         run: |
-          echo ""
-          echo "⏳ Đang thiết lập kết nối Zun Tunnel..."
-          sleep 5
+          echo "🔄 Zun x Kami Tunnel đang thiết lập đường truyền..."
           
-          # Đọc link từ Kami Tunnel
-          if [ -f kami_tunnel.txt ]; then
-            WEB_URL=$(grep -oP 'https://[^\s]+' kami_tunnel.txt | head -1 | sed 's/https:\/\///')
-            if [ -z "$WEB_URL" ]; then
-              WEB_URL=$(cat kami_tunnel.txt | grep -v "^$" | tail -1)
+          WEB_URL=""
+          # Vòng lặp lấy IP thông minh (Fix lỗi link trống)
+          for i in {1..30}; do
+            if [ -f kami_tunnel.txt ]; then
+              # Lọc chính xác link từ file log của Kami
+              WEB_URL=$(grep -a -oE "https://[a-zA-Z0-9.-]+" kami_tunnel.txt | head -n 1 | sed 's|https://||')
+              if [ ! -z "$WEB_URL" ]; then break; fi
             fi
-          fi
-          
-          # Chờ đến khi có URL
-          retry=0
-          while [ -z "$WEB_URL" ] && [ $retry -lt 15 ]; do
             sleep 2
-            WEB_URL=$(grep -oP 'https://[^\s]+' kami_tunnel.txt | head -1 | sed 's/https:\/\///')
-            retry=$((retry+1))
           done
-          
-          # Hiển thị thông tin đẹp mắt
+
+          if [ -z "$WEB_URL" ]; then
+            echo "❌ Lỗi: Không lấy được IP từ Kami Tunnel. Thử lại sau."
+            exit 1
+          fi
+
           echo ""
           echo "╔══════════════════════════════════════════════════════════╗"
-          echo "║                                                          ║"
           echo "║           🚀 VS CODE WEB - ZUN ISOLATION 🚀             ║"
-          echo "║                                                          ║"
           echo "╠══════════════════════════════════════════════════════════╣"
-          echo "║                                                          ║"
           echo "║  🌐 Liên kết Web    : http://$WEB_URL"
           echo "║  🔐 Mật khẩu        : Ubuntu@123456                      ║"
-          echo "║                                                          ║"
           echo "╠══════════════════════════════════════════════════════════╣"
-          echo "║                                                          ║"
-          echo "║  💾 Ổ đĩa Zun       : 60GB (Hoàn toàn biệt lập)         ║"
+          echo "║  💾 Ổ đĩa Zun       : 60GB (Biệt lập hoàn toàn)          ║"
           echo "║  🖥️  Hostname        : Zunadmin                          ║"
-          echo "║  🔒 Bảo mật         : Chroot Isolation + Namespace      ║"
-          echo "║  👤 Tạo bởi         : Zun x Kami Tunnel                 ║"
-          echo "║                                                          ║"
+          echo "║  👤 Người tạo       : Zun x Kami Tunnel                 ║"
           echo "╚══════════════════════════════════════════════════════════╝"
           echo ""
-          echo "✅ Môi trường đã sẵn sàng! Truy cập link trên để bắt đầu."
+          echo "✅ Môi trường đã sẵn sàng! Chúc bạn làm việc hiệu quả."
           echo ""
-          
           echo "WEB_LINK=http://$WEB_URL" >> $GITHUB_ENV
 
       - name: ⏳ DUY TRÌ PHIÊN ZUNADMIN
         run: |
-          echo ""
-          echo "🔄 Bắt đầu duy trì phiên làm việc..."
-          echo ""
-          
+          # Thanh tiến trình chuyên nghiệp
           for i in {1..72}; do
             current_time=$(date '+%H:%M:%S')
-            elapsed=$((i * 5))
-            
-            # Hiển thị thanh tiến trình
-            bar_length=30
-            filled=$((elapsed * bar_length / 360))
-            empty=$((bar_length - filled))
-            bar=$(printf "%${filled}s" | tr ' ' '█')
-            bar="${bar}$(printf "%${empty}s" | tr ' ' '░')"
-            
-            echo -ne "\r💎 [$current_time] Zunadmin hoạt động [$bar] ${elapsed}m/360m"
-            
+            echo "💎 [$current_time] Zunadmin đang hoạt động | Link: $WEB_LINK"
             sleep 300
           done
-          
-          echo ""
-          echo ""
-          echo "✅ Phiên làm việc đã kết thúc sau 6 giờ."
