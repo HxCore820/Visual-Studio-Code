@@ -1,4 +1,4 @@
-name: 🚀 VS CODE WEB IDX (ZUN ADMIN STABLE)
+name: 🚀 VS CODE WEB IDX (ZUN ADMIN CAT MODE)
 
 on:
   workflow_dispatch:
@@ -19,27 +19,21 @@ jobs:
     steps:
       - name: 🛠️ KHỞI TẠO HỆ THỐNG BIỆT LẬP
         run: |
-          # 1. Thiết lập Hostname & User
           sudo hostnamectl set-hostname ZunAdmin
           sudo useradd -m -s /bin/bash Admin
           echo "Admin:Ubuntu@123456" | sudo chpasswd
           sudo usermod -aG sudo Admin
 
-          # 2. Tạo ổ cứng ảo 60GB
+          # Tạo và Mount ổ 60GB
           sudo fallocate -l 60G /mnt/zun_storage.img
           sudo mkfs.ext4 /mnt/zun_storage.img > /dev/null 2>&1
-          
-          # 3. Mount và Cấu hình (Đảm bảo thư mục tồn tại)
           sudo mount -o loop /mnt/zun_storage.img /home/Admin
           sudo mkdir -p /home/Admin/.config/code-server
           sudo cp /etc/skel/.bashrc /home/Admin/
           sudo chown -R Admin:Admin /home/Admin
-          sudo chmod 755 /home/Admin
 
-          # 4. Cài đặt VS Code Web
+          # Cài đặt Code-Server
           curl -fsSL https://code-server.dev/install.sh | sh > /dev/null 2>&1
-
-          # 5. Cấu hình Code-Server
           sudo -u Admin bash -c "cat <<EOF > /home/Admin/.config/code-server/config.yaml
           bind-addr: 127.0.0.1:8080
           auth: password
@@ -47,58 +41,33 @@ jobs:
           cert: false
           EOF"
 
-          # Alias df -h (Chỉ hiện ổ Admin)
-          echo "alias df='df -h | grep -E \"Filesystem|/home/Admin\"'" | sudo tee -a /home/Admin/.bashrc > /dev/null
-
-          # 6. Khởi chạy VS Code (Chạy ngầm)
+          # Chạy VS Code & Tunnel (Dùng stdbuf để ghi file tức thì)
           sudo -u Admin nohup code-server > /home/Admin/code_server.log 2>&1 &
           
-          # 7. Tải và Chạy Tunnel (Sử dụng stdbuf để ghi log liên tục)
           wget -q https://github.com/kami2k1/tunnel/releases/latest/download/kami-tunnel-linux-amd64.tar.gz
           tar -xzf kami-tunnel-linux-amd64.tar.gz
           chmod +x kami-tunnel
-          
-          # Chạy ngầm và ép ghi log vào file ngay lập tức
           stdbuf -oL ./kami-tunnel 8080 > kami_tunnel.txt 2>&1 &
 
-      - name: 🎉 BẢNG ĐIỀU KHIỂN ZUN ADMIN
+      - name: 🎉 THÔNG TIN TRUY CẬP (CAT READ)
         run: |
-          echo "🔄 Đang trích xuất liên kết từ Tunnel..."
-          sleep 15 # Tăng thời gian chờ để tunnel ổn định
+          echo "📡 Đang đọc file kami_tunnel.txt..."
+          sleep 10 # Chờ tunnel kết nối tí thôi
           
-          # Đọc file an toàn: Lọc sạch ký tự màu ANSI và lấy link http
-          # Dùng sed để xóa mã màu \x1b...
-          WEB_URL=$(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" kami_tunnel.txt | grep -o 'http://[a-zA-Z0-9.-]*:[0-9]*' | head -n 1)
+          # Đọc file và lấy link IP:Port
+          WEB_URL=$(cat kami_tunnel.txt | grep -o 'http://[a-zA-Z0-9.-]*:[0-9]*' | head -n 1)
           
-          while [ -z "$WEB_URL" ]; do
-            echo "⌛ Đang quét lại file log..."
-            sleep 5
-            WEB_URL=$(sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" kami_tunnel.txt | grep -o 'http://[a-zA-Z0-9.-]*:[0-9]*' | head -n 1)
-          done
-
-          # LOG GIAO DIỆN VIP
-          echo -e "\033[1;32m"
-          echo "  ███████╗██╗   ██╗███╗   ██╗     █████╗ ██████╗ ███╗   ███╗██╗███╗   ██╗"
-          echo "  ╚══███╔╝██║   ██║████╗  ██║    ██╔══██╗██╔══██╗████╗ ████║██║████╗  ██║"
-          echo "    ███╔╝ ██║   ██║██╔██╗ ██║    ███████║██║  ██║██╔████╔██║██║██╔██╗ ██║"
-          echo "   ███╔╝  ██║   ██║██║╚██╗██║    ██╔══██║██║  ██║██║╚██╔╝██║██║██║╚██╗██║"
-          echo "  ███████╗╚██████╔╝██║ ╚████║    ██║  ██║██████╔╝██║ ╚═╝ ██║██║██║ ╚████║"
-          echo -e "\033[0m"
-          echo -e "\033[1;34m┌──────────────────────────────────────────────────────────────┐\033[0m"
-          echo -e "\033[1;34m│\033[0m \033[1;32m🌐 LINK TRUY CẬP :\033[0m \033[4;32m$WEB_URL\033[0m"
-          echo -e "\033[1;34m│\033[0m \033[1;32m👤 USERNAME     :\033[0m \033[1;37mAdmin\033[0m"
-          echo -e "\033[1;34m│\033[0m \033[1;32m🔐 PASSWORD     :\033[0m \033[1;37mUbuntu@123456\033[0m"
-          echo -e "\033[1;34m├──────────────────────────────────────────────────────────────┤\033[0m"
-          echo -e "\033[1;34m│\033[0m \033[1;33m💾 STORAGE      :\033[0m 60GB (Biệt lập - /home/Admin)       \033[1;34m│\033[0m"
-          echo -e "\033[1;34m│\033[0m \033[1;33m🛡️ STATUS       :\033[0m Online - Isolated Admin Mode         \033[1;34m│\033[0m"
-          echo -e "\033[1;34m└──────────────────────────────────────────────────────────────┘\033[0m"
           echo ""
+          echo -e "\033[1;32m╔══════════════════════════════════════════════════════════════╗\033[0m"
+          echo -e "\033[1;32m║\033[0m \033[1;36m🌐 LINK WEB     :\033[0m $WEB_URL"
+          echo -e "\033[1;32m║\033[0m \033[1;36m👤 USERNAME     :\033[0m Admin"
+          echo -e "\033[1;32m║\033[0m \033[1;36m🔐 PASSWORD     :\033[0m Ubuntu@123456"
+          echo -e "\033[1;32m╚══════════════════════════════════════════════════════════════╝\033[0m"
           echo "WEB_LINK=$WEB_URL" >> $GITHUB_ENV
 
-      - name: ⏳ DUY TRÌ KẾT NỐI
+      - name: ⏳ DUY TRÌ
         run: |
-          echo -e "\033[1;32m✅ Hệ thống đã sẵn sàng!\033[0m"
           for i in {1..100}; do
-            echo -e "\033[1;36m💎 [$(date +%T)] Hoạt động tại: $WEB_LINK\033[0m"
+            echo "💎 [$(date +%T)] Hoạt động: $WEB_LINK"
             sleep 300
           done
