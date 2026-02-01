@@ -1,4 +1,4 @@
-name: 🚀 VS CODE WEB IDX (ZUN ADMIN - IP FIX)
+name: 🚀 VS CODE WEB IDX (ZUN ADMIN - TOTAL FIX)
 
 on:
   workflow_dispatch:
@@ -48,36 +48,41 @@ jobs:
           tar -xzf kami-tunnel-linux-amd64.tar.gz
           chmod +x kami-tunnel
           
-          # Dùng stdbuf để đảm bảo cat đọc được dữ liệu ngay
+          # Chạy tunnel không buffer để cat đọc được ngay
           stdbuf -o0 ./kami-tunnel 8080 > kami_tunnel.txt 2>&1 &
 
-      - name: 🎉 THÔNG TIN TRUY CẬP (IP:PORT MODE)
+      - name: 🎉 THÔNG TIN TRUY CẬP (FINAL FIX)
         run: |
-          echo "📡 Đang trích xuất IP từ kami_tunnel.txt..."
-          sleep 12
+          echo "📡 Đang bóc tách IP từ kami_tunnel.txt..."
+          sleep 15
           
-          # Đọc file, tìm dòng Public, lấy phần IP:Port (bỏ các ký tự | và khoảng trắng)
-          RAW_IP=$(cat kami_tunnel.txt | grep "Public:" | head -n 1 | awk -F'Public:' '{print $2}' | tr -d ' |')
+          # Lệnh Cat và trích xuất IP chuẩn theo ảnh 1325
+          # Tìm dòng chứa Public, lấy cột thứ 3 (phân cách bởi dấu cách hoặc gạch đứng)
+          RAW_IP=$(cat kami_tunnel.txt | grep "Public:" | tail -n 1 | awk '{print $3}')
           
           if [ -z "$RAW_IP" ]; then
-            echo "❌ Không tìm thấy IP. Nội dung file hiện tại để bạn check:"
+            echo "❌ Vẫn chưa thấy IP. Nội dung file đang có là:"
             cat kami_tunnel.txt
             exit 1
           fi
 
+          # HIỂN THỊ LOG SIÊU ĐẸP
           echo ""
-          echo -e "\033[1;32m╔══════════════════════════════════════════════════════════════╗\033[0m"
-          echo -e "\033[1;32m║\033[0m \033[1;36m🌐 ĐỊA CHỈ IP   :\033[0m http://$RAW_IP"
-          echo -e "\033[1;32m║\033[0m \033[1;36m👤 USERNAME     :\033[0m Admin"
-          echo -e "\033[1;32m║\033[0m \033[1;36m🔐 PASSWORD     :\033[0m Ubuntu@123456"
-          echo -e "\033[1;32m╠══════════════════════════════════════════════════════════════╣\033[0m"
-          echo -e "\033[1;32m║\033[0m \033[1;33m💾 BỘ NHỚ       :\033[0m 60GB SSD (Isolated)"
-          echo -e "\033[1;32m╚══════════════════════════════════════════════════════════════╝\033[0m"
+          echo -e "\033[1;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+          echo -e "\033[1;32m  🚀 VS CODE WEB IDX ĐÃ SẴN SÀNG!\033[0m"
+          echo -e "\033[1;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+          echo -e "\033[1;36m  🌐 ĐỊA CHỈ IP   :\033[0m \033[1;37mhttp://$RAW_IP\033[0m"
+          echo -e "\033[1;36m  👤 TÀI KHOẢN     :\033[0m \033[1;37mAdmin\033[0m"
+          echo -e "\033[1;36m  🔐 MẬT KHẨU      :\033[0m \033[1;37mUbuntu@123456\033[0m"
+          echo -e "\033[1;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+          echo -e "\033[1;32m  💾 DUNG LƯỢNG    : 60GB (Isolated System)\033[0m"
+          echo -e "\033[1;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+          echo ""
           echo "WEB_LINK=http://$RAW_IP" >> $GITHUB_ENV
 
       - name: ⏳ DUY TRÌ
         run: |
           for i in {1..100}; do
-            echo "💎 [$(date +%T)] IP ĐANG CHẠY: $WEB_LINK"
+            echo -e "\033[1;34m💎 [$(date +%T)] Hoạt động: $WEB_LINK\033[0m"
             sleep 300
           done
