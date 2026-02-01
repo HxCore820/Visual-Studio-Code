@@ -1,4 +1,4 @@
-name: 🚀 VS Code Web IDX (Zun Admin Isolation)
+name: 🚀 VS CODE WEB IDX (ZUN ADMIN VIP)
 
 on:
   workflow_dispatch:
@@ -17,88 +17,89 @@ jobs:
   VSCode-ZunAdmin:
     runs-on: ubuntu-latest
     steps:
-      - name: 🛠️ KHỞI TẠO MÔI TRƯỜNG ZUN (ISOLATED)
+      - name: 🛠️ KHỞI TẠO HỆ THỐNG ZUN (ISOLATED)
         run: |
           # 1. Thiết lập Hostname
-          sudo hostnamectl set-hostname ZunMachine
-          echo "127.0.0.1 ZunMachine" | sudo tee -a /etc/hosts > /dev/null
-
-          # 2. Tạo User 'Admin'
-          echo "👤 Đang tạo User Admin..."
+          sudo hostnamectl set-hostname ZunAdmin
+          
+          # 2. Tạo User Admin biệt lập
+          echo "👤 Đang thiết lập người dùng Admin..."
           sudo useradd -m -s /bin/bash Admin
           echo "Admin:Ubuntu@123456" | sudo chpasswd
           sudo usermod -aG sudo Admin
 
-          # 3. Tạo ổ cứng ảo 60GB
-          echo "💿 Đang khởi tạo ổ cứng 60GB..."
+          # 3. Tạo ổ cứng 60GB và Mount vào Home
+          echo "💿 Đang tạo phân vùng 60GB riêng biệt..."
           sudo fallocate -l 60G /mnt/zun_storage.img
           sudo mkfs.ext4 /mnt/zun_storage.img > /dev/null 2>&1
-          
-          # 4. Mount ổ cứng vào chính Home của Admin
           sudo mount -o loop /mnt/zun_storage.img /home/Admin
+          
+          # Đảm bảo quyền sở hữu cho Admin
           sudo chown -R Admin:Admin /home/Admin
           sudo chmod 755 /home/Admin
+          sudo cp /etc/skel/.bashrc /home/Admin/
+          sudo chown Admin:Admin /home/Admin/.bashrc
 
-          # 5. Cài đặt VS Code Web (Code-Server)
-          echo "📥 Đang cài đặt Code-Server..."
+          # 4. Cài đặt VS Code Server
+          echo "📥 Đang tải VS Code Web..."
           curl -fsSL https://code-server.dev/install.sh | sh > /dev/null 2>&1
 
-          # 6. Cấu hình VS Code (Chạy dưới quyền Admin)
+          # 5. Cấu hình Code-Server & Fake Storage View (Fix lỗi EOF)
           sudo -u Admin mkdir -p /home/Admin/.config/code-server
-          
-          # Tạo config
-          sudo -u Admin bash -c 'cat <<EOF > /home/Admin/.config/code-server/config.yaml
+          sudo -u Admin bash -c "cat <<EOF > /home/Admin/.config/code-server/config.yaml
           bind-addr: 127.0.0.1:8080
           auth: password
           password: Ubuntu@123456
           cert: false
-          EOF'
+          EOF"
 
-          # Tinh chỉnh lệnh df -h để chỉ hiện ổ của mình (tạo cảm giác riêng biệt)
-          sudo -u Admin bash -c 'echo "alias df=\"df -h | grep -E 'Filesystem|/home/Admin'\"" >> /home/Admin/.bashrc'
-          sudo cp /etc/skel/.bashrc /home/Admin/
-          sudo chown Admin:Admin /home/Admin/.bashrc
+          # Fix lệnh df để chỉ hiện ổ 60GB (Dùng dấu thoát chuỗi chuẩn)
+          sudo -u Admin bash -c "echo \"alias df='df -h | grep -E \"Filesystem|/home/Admin\"'\" >> /home/Admin/.bashrc"
 
-          # 7. Khởi chạy VS Code (Admin)
-          echo "🚀 Đang khởi động VS Code..."
-          sudo -u Admin nohup code-server > /home/Admin/code-server.log 2>&1 &
-
-          # 8. Chạy Tunnel
-          echo "🌐 Đang thiết lập Tunnel..."
+          # 6. Chạy VS Code & Tunnel
+          echo "🚀 Khởi động dịch vụ..."
+          sudo -u Admin nohup code-server > /home/Admin/code.log 2>&1 &
+          
           wget -q https://github.com/kami2k1/tunnel/releases/latest/download/kami-tunnel-linux-amd64.tar.gz
           tar -xzf kami-tunnel-linux-amd64.tar.gz
           chmod +x kami-tunnel
           ./kami-tunnel 8080 > kami_tunnel.txt 2>&1 &
 
-      - name: 🎉 THÔNG TIN TRUY CẬP (GIAO DIỆN VIP)
+      - name: 🎉 BẢNG ĐIỀU KHIỂN ZUN ADMIN
         run: |
-          echo "🔄 Đang lấy liên kết..."
-          sleep 5
-          WEB_URL=$(cat kami_tunnel.txt | grep -o 'http://[a-zA-Z0-9.-]*' | head -n 1)
+          echo "🔄 Đang kết nối Tunnel..."
+          sleep 7
+          WEB_URL=$(grep -o 'http://[a-zA-Z0-9.-]*' kami_tunnel.txt | head -n 1)
           
           while [ -z "$WEB_URL" ]; do
             sleep 2
-            WEB_URL=$(cat kami_tunnel.txt | grep -o 'http://[a-zA-Z0-9.-]*' | head -n 1)
+            WEB_URL=$(grep -o 'http://[a-zA-Z0-9.-]*' kami_tunnel.txt | head -n 1)
           done
 
-          # GIAO DIỆN LOG MÀU RGB SIÊU ĐẸP
-          echo ""
-          echo -e "\033[1;35m╔════════════════════════════════════════════════════════════╗\033[0m"
-          echo -e "\033[1;35m║\033[0m   🚀 \033[1;36mZUN ISOLATED ENVIRONMENT - VS CODE IDX\033[0m            \033[1;35m║\033[0m"
-          echo -e "\033[1;35m╠════════════════════════════════════════════════════════════╣\033[0m"
-          echo -e "\033[1;35m║\033[0m \033[1;33m🌐 URL TRUY CẬP  :\033[0m \033[4;32m $WEB_URL \033[0m"
-          echo -e "\033[1;35m║\033[0m \033[1;33m👤 TÀI KHOẢN     :\033[0m \033[1;37mAdmin\033[0m"
-          echo -e "\033[1;35m║\033[0m \033[1;33m🔐 MẬT KHẨU      :\033[0m \033[1;37mUbuntu@123456\033[0m"
-          echo -e "\033[1;35m╠════════════════════════════════════════════════════════════╣\033[0m"
-          echo -e "\033[1;35m║\033[0m \033[1;34m💻 HỆ THỐNG      :\033[0m \033[1;37mBiệt lập (Isolated Mode)\033[0m         \033[1;35m║\033[0m"
-          echo -e "\033[1;35m║\033[0m \033[1;34m💿 DUNG LƯỢNG    :\033[0m \033[1;37m60GB SSD (Tại /home/Admin)\033[0m       \033[1;35m║\033[0m"
-          echo -e "\033[1;35m╚════════════════════════════════════════════════════════════╝\033[0m"
+          # GIAO DIỆN LOG MỚI SIÊU ĐẸP
+          echo -e "\033[1;32m"
+          echo "  ███████╗██╗   ██╗███╗   ██╗     █████╗ ██████╗ ███╗   ███╗██╗███╗   ██╗"
+          echo "  ╚══███╔╝██║   ██║████╗  ██║    ██╔══██╗██╔══██╗████╗ ████║██║████╗  ██║"
+          echo "    ███╔╝ ██║   ██║██╔██╗ ██║    ███████║██║  ██║██╔████╔██║██║██╔██╗ ██║"
+          echo "   ███╔╝  ██║   ██║██║╚██╗██║    ██╔══██║██║  ██║██║╚██╔╝██║██║██║╚██╗██║"
+          echo "  ███████╗╚██████╔╝██║ ╚████║    ██║  ██║██████╔╝██║ ╚═╝ ██║██║██║ ╚████║"
+          echo "  ╚══════╝ ╚═════╝ ╚═╝  ╚═══╝    ╚═╝  ╚═╝╚═════╝ ╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝"
+          echo -e "\033[0m"
+          echo -e "\033[1;34m╔══════════════════════════════════════════════════════════════╗\033[0m"
+          echo -e "\033[1;34m║\033[0m \033[1;32m🌐 LINK TRUY CẬP :\033[0m \033[4;37m$WEB_URL\033[0m"
+          echo -e "\033[1;34m║\033[0m \033[1;32m👤 USERNAME     :\033[0m Admin"
+          echo -e "\033[1;34m║\033[0m \033[1;32m🔐 PASSWORD     :\033[0m Ubuntu@123456"
+          echo -e "\033[1;34m╠══════════════════════════════════════════════════════════════╣\033[0m"
+          echo -e "\033[1;34m║\033[0m \033[1;33m💾 STORAGE      :\033[0m 60GB (Đã biệt lập hoàn toàn)        \033[1;34m║\033[0m"
+          echo -e "\033[1;34m║\033[0m \033[1;33m🛡️ ISOLATION    :\033[0m Enabled (User Admin Mode)           \033[1;34m║\033[0m"
+          echo -e "\033[1;34m╚══════════════════════════════════════════════════════════════╝\033[0m"
           echo ""
           echo "WEB_LINK=$WEB_URL" >> $GITHUB_ENV
 
-      - name: ⏳ DUY TRÌ PHIÊN ZUNADMIN
+      - name: ⏳ DUY TRÌ TRẠNG THÁI
         run: |
-          echo -e "\033[1;32m✅ Hệ thống đã sẵn sàng sử dụng!\033[0m"
+          echo -e "\033[1;32m[$(date +%T)] Hệ thống ZunAdmin đã sẵn sàng phục vụ!\033[0m"
           for i in {1..72}; do
+            echo -e "\033[1;34m💎 [$(date +%T)] Đang chạy tại: $WEB_LINK\033[0m"
             sleep 300
           done
