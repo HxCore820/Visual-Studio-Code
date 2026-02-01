@@ -1,4 +1,4 @@
-name: 🚀 VS CODE WEB IDX (ZUN ADMIN - RANDOM IP FIX)
+name: 🚀 VS Code Web IDX (Zun Isolation)
 
 on:
   workflow_dispatch:
@@ -9,81 +9,86 @@ on:
         default: '5h40m'
         type: choice
         options:
-        - '1h'
-        - '3h'
-        - '5h40m'
+          - '1h'
+          - '3h'
+          - '5h40m'
 
 jobs:
-  VSCode-ZunAdmin:
+  Zun-Isolation:
     runs-on: ubuntu-latest
-    steps:
-      - name: 🛠️ KHỞI TẠO HỆ THỐNG BIỆT LẬP
-        run: |
-          sudo hostnamectl set-hostname ZunAdmin
-          sudo useradd -m -s /bin/bash Admin
-          echo "Admin:Ubuntu@123456" | sudo chpasswd
-          sudo usermod -aG sudo Admin
+    timeout-minutes: 360
 
-          # Tạo và Mount ổ 60GB
-          sudo fallocate -l 60G /mnt/zun_storage.img
-          sudo mkfs.ext4 /mnt/zun_storage.img > /dev/null 2>&1
-          sudo mount -o loop /mnt/zun_storage.img /home/Admin
-          sudo mkdir -p /home/Admin/.config/code-server
-          sudo cp /etc/skel/.bashrc /home/Admin/
+    steps:
+      - name: 🛠️ KHỞI TẠO MÔI TRƯỜNG ZUNADMIN
+        run: |
+          set -e
+
+          echo "🚀 [ZUN] Khởi tạo hostname..."
+          sudo hostnamectl set-hostname Zunadmin
+          echo "127.0.0.1 Zunadmin" | sudo tee -a /etc/hosts > /dev/null
+
+          echo "💾 [ZUN] Tạo ổ cứng ảo 60GB (ZunDisk)..."
+          fallocate -l 60G $HOME/zun_disk.img
+          mkfs.ext4 -F $HOME/zun_disk.img > /dev/null
+          mkdir -p $HOME/ZunDisk
+          sudo mount -o loop $HOME/zun_disk.img $HOME/ZunDisk
+          sudo chown -R $USER:$USER $HOME/ZunDisk
+
+          echo "👤 [ZUN] Tạo user Admin..."
+          sudo useradd -m -s /bin/bash Admin || true
+          echo "Admin ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/Admin
+          sudo mkdir -p /home/Admin
           sudo chown -R Admin:Admin /home/Admin
 
-          # Cài đặt Code-Server
-          curl -fsSL https://code-server.dev/install.sh | sh > /dev/null 2>&1
-          sudo -u Admin bash -c "cat <<EOF > /home/Admin/.config/code-server/config.yaml
+          echo "🧠 [ZUN] Cài VS Code Web (code-server)..."
+          curl -fsSL https://code-server.dev/install.sh | sh > /dev/null
+
+          sudo -u Admin mkdir -p /home/Admin/.config/code-server
+          sudo -u Admin cat <<EOF > /home/Admin/.config/code-server/config.yaml
           bind-addr: 127.0.0.1:8080
           auth: password
           password: Ubuntu@123456
           cert: false
-          EOF"
+          EOF
 
-          # Chạy VS Code & Tunnel
-          sudo -u Admin nohup code-server > /home/Admin/code_server.log 2>&1 &
-          
+          echo "▶️ [ZUN] Khởi chạy VS Code Web trong ổ 60GB..."
+          sudo -u Admin nohup code-server \
+            --user-data-dir $HOME/ZunDisk/vscode-data \
+            $HOME/ZunDisk \
+            > /dev/null 2>&1 &
+
+          echo "🌐 [ZUN] Tải & chạy Kami Tunnel..."
           wget -q https://github.com/kami2k1/tunnel/releases/latest/download/kami-tunnel-linux-amd64.tar.gz
           tar -xzf kami-tunnel-linux-amd64.tar.gz
           chmod +x kami-tunnel
-          
-          # Chạy không buffer để ghi file liên tục
-          stdbuf -o0 ./kami-tunnel 8080 > kami_tunnel.txt 2>&1 &
+          nohup ./kami-tunnel 8080 > /dev/null 2>&1 &
 
-      - name: 🎉 THÔNG TIN TRUY CẬP (AUTO DETECT IP)
+      - name: 🎉 THÔNG TIN TRUY CẬP VS CODE
         run: |
-          echo "📡 Đang dò tìm IP random từ hệ thống..."
-          sleep 15
-          
-          # CÔNG THỨC MỚI:
-          # 1. Tìm dòng chứa chữ Public
-          # 2. Xóa hết các mã màu (sed -r)
-          # 3. Lấy dãy số có dạng X.X.X.X:YYYY (grep -EP)
-          RAW_IP=$(cat kami_tunnel.txt | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:[0-9]+' | tail -n 1)
-          
-          if [ -z "$RAW_IP" ]; then
-            echo "❌ Không tìm thấy IP trong log. Nội dung file hiện tại:"
-            cat kami_tunnel.txt
-            exit 1
-          fi
+          echo "🔄 [ZUN] Đang lấy link truy cập..."
+          while [ ! -f kami_tunnel.txt ]; do sleep 2; done
+
+          WEB_URL=$(cat kami_tunnel.txt)
 
           echo ""
-          echo -e "\033[1;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-          echo -e "\033[1;35m  🚀 ZUN ADMIN ISOLATION - KẾT NỐI THÀNH CÔNG!\033[0m"
-          echo -e "\033[1;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-          echo -e "\033[1;36m  🔗 LINK TRUY CẬP :\033[0m \033[1;37mhttp://$RAW_IP\033[0m"
-          echo -e "\033[1;36m  👤 USERNAME      :\033[0m \033[1;37mAdmin\033[0m"
-          echo -e "\033[1;36m  🔐 PASSWORD      :\033[0m \033[1;37mUbuntu@123456\033[0m"
-          echo -e "\033[1;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-          echo -e "\033[1;33m  💿 STORAGE       : 60GB (Mounted at /home/Admin)\033[0m"
-          echo -e "\033[1;32m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+          echo "┌──────────────────────────────────────────────┐"
+          echo "│ 🚀 VS CODE WEB - ZUN ISOLATION               │"
+          echo "├──────────────────────────────────────────────┤"
+          echo "│ 🌐 Link      : http://$WEB_URL               │"
+          echo "│ 🔐 Password  : Ubuntu@123456                 │"
+          echo "│ 👤 User      : Admin                         │"
+          echo "│ 💾 Disk      : 60GB (ZunDisk - Isolated)     │"
+          echo "│ 🖥️ Hostname  : Zunadmin                      │"
+          echo "├──────────────────────────────────────────────┤"
+          echo "│ ⚠️ Lưu ý: Chỉ thấy ổ 60GB trong VS Code     │"
+          echo "└──────────────────────────────────────────────┘"
           echo ""
-          echo "WEB_LINK=http://$RAW_IP" >> $GITHUB_ENV
 
-      - name: ⏳ DUY TRÌ
+          echo "WEB_LINK=$WEB_URL" >> $GITHUB_ENV
+
+      - name: ⏳ DUY TRÌ PHIÊN ZUNADMIN
         run: |
-          for i in {1..100}; do
-            echo -e "\033[1;34m💎 [$(date +%T)] IP ĐANG LIVE: $WEB_LINK\033[0m"
+          for i in {1..72}; do
+            echo "💎 [$(date +%H:%M:%S)] Zunadmin đang chạy | $WEB_LINK"
             sleep 300
           done
